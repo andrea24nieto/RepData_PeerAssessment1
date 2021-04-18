@@ -1,25 +1,177 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research - Course Project 1"
+author: "Andrea Nieto"
+date: "4/13/2021"
+output: html_document
 ---
 
+***
+## **Introduction**
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals throughout the day. The data consists of two months of data from an anonymous individual collected during the months of October and November 2012 and include the number of steps taken in 5 minute intervals each day. 
+  
+Download the data [here](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip).
 
-## Loading and preprocessing the data
+***
+## **Assignment**  
+### 1. Code for reading in the dataset and/or processing the data
+First, the data is loaded using the *read.csv()* function:
+```{r, echo=TRUE}
+## Setting the working directory
+setwd("C:/Users/Andrea/Desktop/RepData_PeerAssessment1")
+## Importing data
+data <- read.csv(file = "activity.csv")
+## Getting information about the variables
+str(data)
+```
+  
+As we can see, there are **17568 observations** with information regarding **3 variables**:  
 
+* **steps**: Number of steps taken in a 5-minute interval (missing values are coded as *NA*)    
+* **date**: The date on which the measurement was taken in YYYY-MM-DD format 
+* **interval**: Identifier for the 5-minute interval in which the measurement was taken  
 
+Then, the **date** values are transformed from *character* to *date* class in order to simplify further analyses:
+```{r, echo=TRUE}
+## Converting to date class
+data$date <- as.Date(data$date, format = "%Y-%m-%d")
+class(data$date)
+```  
+  
+### 2. Histogram of the total number of steps taken each day  
+First, using the *dplyr* package, the data is grouped by date and the total steps per day are calculated:
+```{r, echo=TRUE, message="FALSE", warning="FALSE"}
+## Loading dplyr package
+suppressPackageStartupMessages(library(dplyr)) 
+## Grouping data by date
+prespd <- group_by(data,date)
+## Getting total steps per day
+spd <- suppressMessages(summarise(prespd, total_steps = sum(steps))) 
+```
 
-## What is mean total number of steps taken per day?
+The data is now available as total steps per date:
+```{r, echo=FALSE}
+head(spd, 5)
+```
 
+Then, from the summarized data, a histogram of the total number of steps taken each day is built using the base plotting system:
+```{r, echo=TRUE}
+hist(spd$total_steps, main = "Histogram of Steps per Day", 
+     xlab = "Number of Steps", ylab = "Frequency", col = "blue")
+```
+  
+### 3. Mean and median number of steps taken each day
+The mean and median of the total steps taken per day are calculated using the previously summarized data:  
+```{r, echo=TRUE}
+mean(spd$total_steps, na.rm = TRUE)
+median(spd$total_steps, na.rm = TRUE)
+```
 
+### 4. Time series plot of the average number of steps taken
+First, using the *dplyr* package, the data is grouped by interval and the average steps per interval are calculated:
+```{r, echo=TRUE, message="FALSE", warning="FALSE"}
+## Grouping data by interval
+preadp <- group_by(data, interval)
+## Getting average steps per interval
+adp <- suppressMessages(summarise(preadp, average_steps = mean(steps, na.rm = TRUE)))
+```
 
-## What is the average daily activity pattern?
+The data is now available as average steps per interval:
+```{r, echo=FALSE}
+head(adp, 5)
+```
 
+Then, from the summarized data, a line plot of the average number of steps taken per interval is built using the base plotting system:
+```{r, echo=TRUE}
+plot(adp$interval, adp$average_steps, type = "l", col = "blue",
+     main = "Average Daily Activity Pattern", xlab = "Interval",
+     ylab = "Average Steps", xaxt = "n")
+axis(side = 1, at = seq(0, 2400, by = 100), las = 2)
+```
+  
+### 5. The 5-minute interval that, on average, contains the maximum number of steps
+In order to obtain the 5-minute interval with the maximum number of steps, the *which.max()* function is used to determine the row location of the maximum value and then subset the corresponding interval: 
+```{r, echo=TRUE}
+adp[which.max(adp$average_steps),]$interval
+```
+```{r, echo=TRUE}
+max(adp$average_steps)
+```
+Interval **835** has, on average, the maximum number of steps with **206.1698** steps.
 
+### 6. Code to describe and show a strategy for imputing missing data
+First, the amount of *NA* values is obtained by negating the *complete.cases()* function:
+```{r, echo=TRUE}
+sum(!complete.cases(data))
+```
 
-## Imputing missing values
+Then, the missing values are filled with the rounded average of the corresponding interval. The *if.else()* function is used to replace only the *NA* values by matching the interval from the complete data set with the interval from the data set constructed in step 5. and assigning the corresponding average. A new variable named *complete_steps* is created with the complete data:
+```{r, echo=TRUE}
+data$complete_steps <- ifelse(is.na(data$steps),
+                              round(adp$average_steps[match(data$interval, adp$interval)],0), 
+                              data$steps)
+```
 
+Finally, a new data set is created with missing data filled in:
+```{r, echo=TRUE}
+all_data <- data.frame(Steps = data$complete_steps, Date = data$date,
+                       Interval = data$interval)
+```
 
+The new data frame looks like the following:
+```{r, echo=TRUE}
+head(all_data, n=10)
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+### 7. Histogram of the total number of steps taken each day after missing values are imputed
+A second histogram of the total number of steps taken per day is built with the complete data:
+```{r, echo=TRUE}
+## Grouping complete data by date
+histcomp0 <- group_by(all_data, Date)
+## Getting total steps per date
+histcomp <- suppressMessages(summarise(histcomp0, Total_Steps = sum(Steps)))
+## Building histogram with base plotting system
+hist(histcomp$Total_Steps, main = "Histogram of Steps per Day (Complete)", 
+     xlab = "Number of Steps", ylab = "Frequency", col = "green")
+```
+
+The mean and median of the total steps taken per day are recalculated with the complete data:
+```{r, echo=TRUE}
+mean(histcomp$Total_Steps, na.rm = TRUE)
+median(histcomp$Total_Steps, na.rm = TRUE)
+```
+
+By comparing these values with the ones previously obtained *(mean: 10766.19, median: 10765)*, it can be noted that imputing missing data causes the mean and median values to go down. 
+
+### 8. Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+First, a new factor variable with two levels - *weekday* & *weekend* was created by obtaining the weekday from the dates and then evaluating the day type with the *if.else()* function:
+
+```{r, echo=TRUE}
+## Getting weekday from the dates
+Weekday <- weekdays(all_data$Date)
+## Adding weekday variable to data frame
+all_data_wk <- cbind(all_data, Weekday)
+## Classifying days in "weekday" or "weekend"
+all_data_wk$Day_Type <- ifelse(all_data_wk$Weekday == "Saturday" | 
+                                   all_data_wk$Weekday == "Sunday", "Weekend", "Weekday")
+```
+
+The new data frame looks like this:
+```{r, echo=FALSE}
+head(all_data_wk,5)
+```
+
+Finally, a panel plot of the average daily steps by type of date is created with the ggplot2 plotting system:
+```{r, echo=TRUE}
+## Grouping data by interval
+prepanel <- group_by(all_data_wk, Interval, Day_Type)
+## Getting the average steps per interval
+panel <- suppressMessages(summarise(prepanel, Average_Steps = mean(Steps, na.rm = TRUE)))
+## Building panel plot
+library(ggplot2)
+panelplot <- ggplot(panel, aes(x = Interval, y = Average_Steps, 
+                               color = Day_Type)) + geom_line() + 
+    facet_wrap(.~Day_Type, ncol = 1, nrow = 2) + 
+    labs(x = "Interval", y = "Average Steps", title = "Average Steps by Type of Day")
+## Displaying plot
+print(panelplot)
+```
